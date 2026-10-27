@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "Tenant organization representing the business entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "legalName": { "type": "string", "maxLength": 150 },
+        "taxId": { "type": "string", "maxLength": 50 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "ownerUid"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with commercial role assignments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 150 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["propietario", "administrador", "empleado", "solo_lectura"] },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "role", "tenantId"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Commercial product or service inventory item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "sku": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 500 },
+        "category": { "type": "string", "maxLength": 80 },
+        "salePrice": { "type": "number" },
+        "unitCost": { "type": "number" },
+        "stock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "unit": { "type": "string", "enum": ["unidad", "kg", "litro", "caja", "pack", "metro"] },
+        "supplier": { "type": "string", "maxLength": 120 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["activo", "inactivo"] },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sku", "name", "salePrice", "stock", "status"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Commercial customer profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "taxId": { "type": "string", "maxLength": 50 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "format": "email", "maxLength": 150 },
+        "address": { "type": "string", "maxLength": 250 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "totalPurchases": { "type": "number" },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "phone"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Completed point-of-sale or commercial transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "saleNumber": { "type": "string", "maxLength": 40 },
+        "date": { "type": "string", "format": "date-time" },
+        "subtotal": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["completada", "anulada"] },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "maxLength": 100 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "clientName": { "type": "string", "maxLength": 150 },
+        "paymentMethod": { "type": "string", "enum": ["efectivo", "transferencia", "tarjeta_debito", "tarjeta_credito", "cuenta_corriente", "otro"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "syncStatus": { "type": "string", "enum": ["pendiente", "sincronizado", "error"] },
+        "tenantId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "saleNumber", "date", "total", "status", "employeeId", "paymentMethod"]
+    },
+    "InventoryMovement": {
+      "title": "InventoryMovement",
+      "description": "Stock ledger transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "format": "date-time" },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 150 },
+        "productSku": { "type": "string", "maxLength": 64 },
+        "type": { "type": "string", "enum": ["entrada", "salida_venta", "salida_merma", "ajuste_positivo", "ajuste_negativo", "anulacion_venta"] },
+        "quantity": { "type": "number" },
+        "previousStock": { "type": "number" },
+        "resultingStock": { "type": "number" },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "maxLength": 100 },
+        "observation": { "type": "string", "maxLength": 300 },
+        "saleId": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "date", "productId", "type", "quantity", "resultingStock", "employeeId"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Operational business expense transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "format": "date-time" },
+        "concept": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "enum": ["proveedores", "alquiler", "servicios", "sueldos", "impuestos", "mantenimiento", "marketing", "logistica", "otros"] },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["efectivo", "transferencia", "tarjeta_debito", "tarjeta_credito", "cuenta_corriente", "otro"] },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "employeeName": { "type": "string", "maxLength": 100 },
+        "notes": { "type": "string", "maxLength": 400 },
+        "tenantId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "date", "concept", "category", "amount", "employeeId"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": {
+      "schema": "Organization",
+      "description": "Tenant businesses with owner and configurations"
+    },
+    "/organizations/{orgId}/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles assigned to this tenant with RBAC roles"
+    },
+    "/organizations/{orgId}/products/{productId}": {
+      "schema": "Product",
+      "description": "Commercial catalog products"
+    },
+    "/organizations/{orgId}/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Customer contact and billing information"
+    },
+    "/organizations/{orgId}/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Completed commercial sales and orders"
+    },
+    "/organizations/{orgId}/inventory_movements/{movementId}": {
+      "schema": "InventoryMovement",
+      "description": "Audited inventory ledger movements"
+    },
+    "/organizations/{orgId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Operational business expenses"
+    }
+  }
+}

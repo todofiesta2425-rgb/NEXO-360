@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getUserData(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data;
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
+    }
+
+    function isOrgRole(orgId, role) {
+      return isOrgMember(orgId) && getUserData(orgId).role == role && getUserData(orgId).active == true;
+    }
+
+    function isOrgAdminOrOwner(orgId) {
+      return isOrgRole(orgId, 'propietario') || isOrgRole(orgId, 'administrador');
+    }
+
+    function canWriteCommercial(orgId) {
+      return isOrgAdminOrOwner(orgId) || isOrgRole(orgId, 'empleado');
+    }
+
+    // Organizations collection
+    match /organizations/{orgId} {
+      allow get: if isOrgMember(orgId);
+      allow create: if isSignedIn() && isValidId(orgId) && incoming().ownerUid == request.auth.uid;
+      allow update: if isOrgRole(orgId, 'propietario') && incoming().ownerUid == existing().ownerUid;
+      allow delete: if false;
+
+      // Users subcollection
+      match /users/{userId} {
+        allow get: if isOrgMember(orgId);
+        allow list: if isOrgMember(orgId);
+        allow create: if isOrgAdminOrOwner(orgId) && isValidId(userId);
+        allow update: if isOrgAdminOrOwner(orgId);
+        allow delete: if isOrgRole(orgId, 'propietario') && userId != request.auth.uid;
+      }
+
+      // Products subcollection
+      match /products/{productId} {
+        allow get, list: if isOrgMember(orgId);
+        allow create: if canWriteCommercial(orgId) && isValidId(productId) 
+          && incoming().name is string && incoming().name.size() <= 150
+          && incoming().salePrice is number && incoming().salePrice >= 0;
+        allow update: if canWriteCommercial(orgId)
+          && incoming().name is string && incoming().name.size() <= 150
+          && incoming().salePrice is number && incoming().salePrice >= 0;
+        allow delete: if isOrgAdminOrOwner(orgId);
+      }
+
+      // Clients subcollection
+      match /clients/{clientId} {
+        allow get, list: if isOrgMember(orgId);
+        allow create, update: if canWriteCommercial(orgId) && isValidId(clientId)
+          && incoming().name is string && incoming().name.size() <= 150;
+        allow delete: if isOrgAdminOrOwner(orgId);
+      }
+
+      // Sales subcollection
+      match /sales/{saleId} {
+        allow get, list: if isOrgMember(orgId);
+        allow create: if canWriteCommercial(orgId) && isValidId(saleId)
+          && incoming().total is number && incoming().total >= 0
+          && incoming().employeeId == request.auth.uid;
+        allow update: if isOrgAdminOrOwner(orgId) // Only owner/admin can cancel or adjust
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'syncStatus', 'syncedAt']);
+        allow delete: if false; // Audit trail: sales are never hard-deleted
+      }
+
+      // Inventory movements subcollection
+      match /inventory_movements/{movementId} {
+        allow get, list: if isOrgMember(orgId);
+        allow create: if canWriteCommercial(orgId) && isValidId(movementId)
+          && incoming().quantity is number && incoming().quantity > 0
+          && incoming().employeeId == request.auth.uid;
+        allow update, delete: if false; // Ledger is append-only
+      }
+
+      // Expenses subcollection
+      match /expenses/{expenseId} {
+        allow get, list: if isOrgMember(orgId);
+        allow create: if canWriteCommercial(orgId) && isValidId(expenseId)
+          && incoming().amount is number && incoming().amount > 0;
+        allow update: if isOrgAdminOrOwner(orgId);
+        allow delete: if isOrgAdminOrOwner(orgId);
+      }
+    }
+  }
+}
