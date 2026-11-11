@@ -1,3 +1,4 @@
+import { auth, db } from './firebaseConfig';
 import { storageService } from './storageService';
 
 export enum OperationType {
@@ -31,19 +32,24 @@ export function handleFirestoreError(
   operationType: OperationType,
   path: string | null
 ): never {
+  const currentUser = auth.currentUser;
   const currentEmp = storageService.getCurrentEmployee();
+
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: currentEmp.id,
-      email: currentEmp.email,
-      emailVerified: true,
-      isAnonymous: false,
-      tenantId: 'tenant-nexo-central',
-      providerInfo: [
+      userId: currentUser?.uid || currentEmp?.id || null,
+      email: currentUser?.email || currentEmp?.email || null,
+      emailVerified: currentUser?.emailVerified ?? true,
+      isAnonymous: currentUser?.isAnonymous ?? false,
+      tenantId: currentUser?.tenantId || 'tenant-nexo-central',
+      providerInfo: currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || [
         {
           providerId: 'password',
-          email: currentEmp.email
+          email: currentEmp?.email || null
         }
       ]
     },
@@ -59,16 +65,17 @@ export async function checkFirebaseStatus(): Promise<{
   isAvailable: boolean;
   message: string;
 }> {
-  const config = storageService.getConfig();
-  if (config.demoMode || !config.firebaseConnected) {
+  if (auth.currentUser) {
     return {
-      isAvailable: false,
-      message: 'Modo Local / Demostración: Los datos se guardan en el almacenamiento del navegador. Para habilitar sincronización multi-dispositivo en tiempo real, conecte Firebase en la sección de Configuración.'
+      isAvailable: true,
+      message: `Firebase autenticado como ${auth.currentUser.email}. Sincronización en la nube activa.`
     };
   }
 
   return {
     isAvailable: true,
-    message: 'Conexión Firebase activa. Las operaciones se replican en Cloud Firestore.'
+    message: 'Firebase aprovisionado. Inicie sesión para sincronizar datos en tiempo real.'
   };
 }
+
+export { auth, db };

@@ -12,16 +12,52 @@ import { ReportsPage } from './pages/ReportsPage';
 import { EmployeesPage } from './pages/EmployeesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ImportProductsPage } from './pages/ImportProductsPage';
+import { LoginPage } from './pages/LoginPage';
 import { RestockModal } from './components/modals/RestockModal';
 import { MovementHistoryModal } from './components/modals/MovementHistoryModal';
 import { storageService } from './services/storageService';
 import { Product, Employee, BusinessConfig } from './types';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { NexoLogo } from './components/common/NexoLogo';
+import { ShieldAlert, ArrowLeft, RefreshCw, Lock } from 'lucide-react';
 
-export default function App() {
+function ProtectedRouteFallback({
+  tabName,
+  userRole,
+  onBackToDashboard
+}: {
+  tabName: string;
+  userRole: string;
+  onBackToDashboard: () => void;
+}) {
+  return (
+    <div className="max-w-xl mx-auto my-12 bg-white rounded-3xl p-8 border border-gray-200/80 shadow-md text-center">
+      <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-200">
+        <Lock size={28} />
+      </div>
+      <h2 className="text-xl font-black text-[#101820] mb-2">
+        Acceso Restringido: {tabName}
+      </h2>
+      <p className="text-xs text-gray-500 max-w-md mx-auto mb-6 leading-relaxed">
+        Este módulo contiene información confidencial y configuraciones del negocio reservadas para el rol <strong>Propietario</strong> o <strong>Administrador</strong>. Tu perfil actual está asignado como <span className="capitalize font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{userRole}</span>.
+      </p>
+      <button
+        onClick={onBackToDashboard}
+        className="px-5 py-2.5 bg-[#101820] hover:bg-[#1a2533] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2 mx-auto cursor-pointer"
+      >
+        <ArrowLeft size={15} />
+        <span>Volver al Dashboard Principal</span>
+      </button>
+    </div>
+  );
+}
+
+function MainApp() {
+  const { user, profile, role, isAdmin, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   // Storage reactive states
   const [config, setConfig] = useState<BusinessConfig>(storageService.getConfig());
   const [currentEmployee, setCurrentEmployee] = useState<Employee>(storageService.getCurrentEmployee());
@@ -44,6 +80,17 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  // Sync active authenticated user with storage currentEmployee
+  useEffect(() => {
+    if (profile) {
+      const all = storageService.getEmployees();
+      const match = all.find(e => e.id === profile.id || e.email.toLowerCase() === profile.email.toLowerCase());
+      if (match) {
+        setCurrentEmployee(match);
+      }
+    }
+  }, [profile]);
+
   const handleSelectEmployee = (id: string) => {
     storageService.setCurrentEmployee(id);
     setCurrentEmployee(storageService.getCurrentEmployee());
@@ -59,6 +106,30 @@ export default function App() {
     setHistoryModalOpen(true);
   };
 
+  // 1. Loading splash screen while verifying Firebase session
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#101820] flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-200">
+          <NexoLogo size="xl" light={true} showTagline={false} />
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 mt-2">
+            <RefreshCw size={16} className="animate-spin text-[#35D0BA]" />
+            <span>Verificando sesión segura en Firebase...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated state: render full enterprise LoginPage
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  // Determine active operating role (from profile or fallback)
+  const activeRole = profile?.role || role || currentEmployee.role;
+  const isSuperOrAdmin = activeRole === 'propietario' || activeRole === 'administrador';
+
   return (
     <div className="min-h-screen bg-[#F2F4F6] text-[#101820] flex flex-col antialiased">
       {/* Sidebar Navigation */}
@@ -67,7 +138,7 @@ export default function App() {
         onSelectTab={setCurrentTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        userRole={currentEmployee.role}
+        userRole={activeRole}
         isMobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
       />
@@ -89,7 +160,7 @@ export default function App() {
           onOpenSettings={() => setCurrentTab('settings')}
         />
 
-        {/* Dynamic Page Container */}
+        {/* Dynamic Page Container with Role Route Protection */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {currentTab === 'dashboard' && (
             <DashboardPage 
@@ -124,11 +195,42 @@ export default function App() {
 
           {currentTab === 'expenses' && <ExpensesPage />}
 
-          {currentTab === 'reports' && <ReportsPage />}
+          {/* Protected Administrative Routes */}
+          {currentTab === 'reports' && (
+            isSuperOrAdmin ? (
+              <ReportsPage />
+            ) : (
+              <ProtectedRouteFallback
+                tabName="Reportes y Cierres de Caja"
+                userRole={activeRole}
+                onBackToDashboard={() => setCurrentTab('dashboard')}
+              />
+            )
+          )}
 
-          {currentTab === 'employees' && <EmployeesPage />}
+          {currentTab === 'employees' && (
+            isSuperOrAdmin ? (
+              <EmployeesPage />
+            ) : (
+              <ProtectedRouteFallback
+                tabName="Equipo y Permisos"
+                userRole={activeRole}
+                onBackToDashboard={() => setCurrentTab('dashboard')}
+              />
+            )
+          )}
 
-          {currentTab === 'settings' && <SettingsPage />}
+          {currentTab === 'settings' && (
+            isSuperOrAdmin ? (
+              <SettingsPage />
+            ) : (
+              <ProtectedRouteFallback
+                tabName="Configuración & Integraciones"
+                userRole={activeRole}
+                onBackToDashboard={() => setCurrentTab('dashboard')}
+              />
+            )
+          )}
         </main>
       </div>
 
@@ -144,5 +246,13 @@ export default function App() {
         onClose={() => setHistoryModalOpen(false)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }

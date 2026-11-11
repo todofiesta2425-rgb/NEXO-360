@@ -311,12 +311,25 @@ export const SettingsPage: React.FC = () => {
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 text-xs space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-gray-700">Modo de Almacenamiento Activo:</span>
-                <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#101820] text-[#35D0BA]">
-                  Local Seguro Resiliente
+                <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#101820] text-[#35D0BA] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#35D0BA] animate-pulse" />
+                  Cloud Firestore & Firebase Auth Activo
                 </span>
               </div>
-              <p className="text-gray-600 leading-relaxed">
-                La aplicación funciona completamente de forma local sin requerir credenciales ni facturación previa. Cuando se aprovisiona Firestore, los listeners en tiempo real (<code className="font-mono text-gray-800 bg-gray-200 px-1 py-0.5 rounded">onSnapshot</code>) replican los registros entre celulares, tablets y computadoras instantáneamente.
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-[11px] text-gray-600">
+                <div className="bg-white p-2.5 rounded-xl border border-gray-200">
+                  <span className="text-gray-400 block text-[10px] uppercase font-bold">Proyecto Firebase</span>
+                  <span className="font-mono font-bold text-gray-900">teak-library-tsmzh</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-gray-200">
+                  <span className="text-gray-400 block text-[10px] uppercase font-bold">Base de Datos Firestore</span>
+                  <span className="font-mono text-xs text-gray-700 truncate block" title="ai-studio-nexo360gestincom-01032e7c-23f9-4db8-a723-1e601d47c865">
+                    ai-studio-nexo360...
+                  </span>
+                </div>
+              </div>
+              <p className="text-gray-600 leading-relaxed pt-1">
+                La autenticación por correo y contraseña se gestiona directamente en Firebase Authentication con persistencia segura de sesión. Los datos se replican en Cloud Firestore respetando los roles y permisos de cada usuario.
               </p>
 
               <div className="pt-3 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">

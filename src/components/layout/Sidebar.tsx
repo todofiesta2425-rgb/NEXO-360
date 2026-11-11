@@ -177,22 +177,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
             const isAllowed = 
               item.allowedRoles.includes(userRole) || 
               userRole === 'propietario' || 
-              userRole === 'administrador' || 
-              !['propietario', 'administrador', 'empleado', 'solo_lectura'].includes(userRole);
+              userRole === 'administrador';
             const isActive = currentTab === item.id;
             const Icon = item.icon;
 
             return (
               <button
                 key={item.id}
-                onClick={() => handleItemClick(item.id)}
-                title={collapsed ? item.label : undefined}
+                onClick={() => {
+                  if (!isAllowed) {
+                    alert(`El módulo "${item.label}" está reservado para Administradores y Propietarios.`);
+                    return;
+                  }
+                  handleItemClick(item.id);
+                }}
+                title={collapsed ? item.label : (!isAllowed ? `${item.label} (Requiere rol Administrador)` : undefined)}
                 className={`group relative flex items-center w-full rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
                   isActive
                     ? 'bg-[#35D0BA] text-[#101820] shadow-md shadow-[#35D0BA]/20 font-bold'
                     : 'text-gray-300 hover:text-white hover:bg-white/10'
                 } ${collapsed ? 'justify-center' : 'justify-between'} ${
-                  !isAllowed ? 'opacity-50 cursor-not-allowed' : ''
+                  !isAllowed ? 'opacity-40 cursor-not-allowed hover:bg-transparent text-gray-500' : 'cursor-pointer'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">

@@ -162,6 +162,10 @@
     "/organizations/{orgId}/expenses/{expenseId}": {
       "schema": "Expense",
       "description": "Operational business expenses"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Direct root user profile for authentication and tenant linking"
     }
   }
 }

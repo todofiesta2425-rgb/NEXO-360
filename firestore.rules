@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny all access
+    // Global default-deny catch-all
     match /{document=**} {
       allow read, write: if false;
     }
@@ -24,40 +24,95 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function getUserData(orgId) {
-      return get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data;
+    function isBootstrappedAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'todofiesta2425@gmail.com' ||
+        request.auth.token.email == 'admin@nexo360.com'
+      );
+    }
+
+    function getUserDoc(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function hasUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isSystemAdmin() {
+      return isBootstrappedAdmin() || (
+        hasUserDoc() && (
+          getUserDoc(request.auth.uid).role == 'propietario' ||
+          getUserDoc(request.auth.uid).role == 'administrador'
+        ) && getUserDoc(request.auth.uid).active == true
+      );
     }
 
     function isOrgMember(orgId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
-    }
-
-    function isOrgRole(orgId, role) {
-      return isOrgMember(orgId) && getUserData(orgId).role == role && getUserData(orgId).active == true;
+      return isBootstrappedAdmin() || (
+        isSignedIn() && (
+          exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)) ||
+          (hasUserDoc() && getUserDoc(request.auth.uid).tenantId == orgId)
+        )
+      );
     }
 
     function isOrgAdminOrOwner(orgId) {
-      return isOrgRole(orgId, 'propietario') || isOrgRole(orgId, 'administrador');
+      return isSystemAdmin() || (
+        isOrgMember(orgId) && (
+          (exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)) &&
+            (get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.role in ['propietario', 'administrador'])) ||
+          (hasUserDoc() && getUserDoc(request.auth.uid).tenantId == orgId &&
+            getUserDoc(request.auth.uid).role in ['propietario', 'administrador'])
+        )
+      );
     }
 
     function canWriteCommercial(orgId) {
-      return isOrgAdminOrOwner(orgId) || isOrgRole(orgId, 'empleado');
+      return isOrgMember(orgId);
+    }
+
+    // Root user profiles collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isSystemAdmin());
+      allow list: if isSystemAdmin();
+      
+      // Prevent self-privilege escalation during registration
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && incoming().id == userId
+        && incoming().email is string
+        && (
+          isBootstrappedAdmin() || 
+          incoming().role in ['empleado', 'solo_lectura']
+        );
+
+      // Only admins can alter roles; users can update their own display name
+      allow update: if isSignedIn() && isValidId(userId) && (
+        isSystemAdmin() || (
+          request.auth.uid == userId &&
+          incoming().id == existing().id &&
+          incoming().email == existing().email &&
+          incoming().role == existing().role &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'lastActive'])
+        )
+      );
+
+      allow delete: if isBootstrappedAdmin() && userId != request.auth.uid;
     }
 
     // Organizations collection
     match /organizations/{orgId} {
       allow get: if isOrgMember(orgId);
       allow create: if isSignedIn() && isValidId(orgId) && incoming().ownerUid == request.auth.uid;
-      allow update: if isOrgRole(orgId, 'propietario') && incoming().ownerUid == existing().ownerUid;
+      allow update: if isOrgAdminOrOwner(orgId) && incoming().ownerUid == existing().ownerUid;
       allow delete: if false;
 
-      // Users subcollection
+      // Users subcollection within organization
       match /users/{userId} {
-        allow get: if isOrgMember(orgId);
-        allow list: if isOrgMember(orgId);
+        allow get, list: if isOrgMember(orgId);
         allow create: if isOrgAdminOrOwner(orgId) && isValidId(userId);
         allow update: if isOrgAdminOrOwner(orgId);
-        allow delete: if isOrgRole(orgId, 'propietario') && userId != request.auth.uid;
+        allow delete: if isOrgAdminOrOwner(orgId) && userId != request.auth.uid;
       }
 
       // Products subcollection
@@ -86,9 +141,9 @@ service cloud.firestore {
         allow create: if canWriteCommercial(orgId) && isValidId(saleId)
           && incoming().total is number && incoming().total >= 0
           && incoming().employeeId == request.auth.uid;
-        allow update: if isOrgAdminOrOwner(orgId) // Only owner/admin can cancel or adjust
+        allow update: if isOrgAdminOrOwner(orgId)
           && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'syncStatus', 'syncedAt']);
-        allow delete: if false; // Audit trail: sales are never hard-deleted
+        allow delete: if false;
       }
 
       // Inventory movements subcollection
@@ -97,7 +152,7 @@ service cloud.firestore {
         allow create: if canWriteCommercial(orgId) && isValidId(movementId)
           && incoming().quantity is number && incoming().quantity > 0
           && incoming().employeeId == request.auth.uid;
-        allow update, delete: if false; // Ledger is append-only
+        allow update, delete: if false;
       }
 
       // Expenses subcollection
